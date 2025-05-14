@@ -1,0 +1,36 @@
+---
+
+- name: Copy grafana GPG key to remote
+  copy:
+    src: tmp/gpg.key
+    dest: /tmp/gpg.key
+    owner: root
+    group: root
+
+- name: Convert key to binary and move to trusted.gpg.d
+  shell: |
+    gpg --dearmor < /tmp/gpg.key > /etc/apt/trusted.gpg.d/grafana.gpg
+  become: true
+
+- name: Add grafana repository
+  apt_repository:
+    repo: "deb https://packages.grafana.com/oss/deb stable main"
+    state: present
+    filename: grafana
+
+- name: Install grafana
+  apt:
+    name: grafana
+    state: present
+    update_cache: true
+
+- name: Allow grafana port 3000 through ufw
+  ufw:
+    rule: allow
+    port: "3000"
+    proto: tcp
+
+- name: Enable and start grafana
+  systemd:
+    name: grafana-server
+    enabled: true

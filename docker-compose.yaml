@@ -1,0 +1,190 @@
+version: '3.8'
+services:
+  master_postgres:
+    image: postgres:17
+    container_name: master_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PG_MASTER_PASS:?The password for the master database is required}
+      POSTGRES_DB: postgres
+      PG_REPLICA_PASS: ${PG_REPLICA_PASS:?The password for the replica database is required}
+    volumes:
+      - pg_master_data:/var/lib/postgresql/data  
+      - ./config_files/pg_master/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./config_files/pg_master/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./config_files/pg_master/init-master.sh:/docker-entrypoint-initdb.d/init-master.sh
+    ports:
+      - 5433:5432
+    command: 
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf 
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - db_cluster_net
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  replica_postgres:
+    image: postgres:17
+    container_name: replica_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PG_REPLICA_PASS:?The password for the replica database is required}
+      POSTGRES_DB: postgres
+      PG_MASTER_PASS: ${PG_MASTER_PASS:?The password for the master database is required}
+    volumes:
+      - pg_replica_data:/var/lib/postgresql/data
+      - ./config_files/pg_replica/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./config_files/pg_replica/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./config_files/pg_replica/init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
+    ports:
+      - 5434:5432
+    command: 
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    depends_on:
+      master_postgres:
+        condition: service_healthy
+    networks:
+      - db_cluster_net
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  pg_master_exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: pg_master_exporter
+ 
+    command:
+      - --collector.long_running_transactions
+      - --collector.postmaster
+      - --collector.process_idle
+      - --collector.stat_activity_autovacuum
+      - --collector.stat_statements
+      - --collector.statio_user_indexes
+    ports:
+        - "9187:9187"
+    environment:
+        DATA_SOURCE_NAME: "postgres://postgres:${PG_MASTER_PASS}@master_postgres/postgres?sslmode=disable"
+    depends_on:
+        prometheus:
+            condition: service_started
+        master_postgres:
+            condition: service_healthy
+    restart: always
+    networks:
+        - db_cluster_net
+
+  pg_replica_exporter:
+    image: prometheuscommunity/postgres-exporter
+    container_name: pg_replica_exporter
+    ports:
+        - "9188:9187"
+    environment:
+        DATA_SOURCE_NAME: "postgres://postgres:${PG_MASTER_PASS}@replica_postgres/postgres?sslmode=disable"
+    command: 
+      - --collector.long_running_transactions
+      - --collector.postmaster
+      - --collector.process_idle
+      - --collector.stat_activity_autovacuum
+      - --collector.stat_statements
+      - --collector.statio_user_indexes
+    depends_on:
+        prometheus:
+            condition: service_started
+        replica_postgres:
+            condition: service_healthy
+    restart: always
+    networks:
+        - db_cluster_net
+  
+  prometheus:
+    image: prom/prometheus:v2.26.0
+    container_name: prometheus
+    volumes:
+      - ./config_files/prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - 9090:9090
+    restart: always
+    networks:
+      - db_cluster_net
+    logging:  
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  grafana:
+    image: grafana/grafana:10.0.3-ubuntu
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+    depends_on:
+      - prometheus
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config_files/grafana/datasources/:/etc/grafana/provisioning/datasources/
+
+    restart: always
+    networks:
+      - db_cluster_net
+    logging:  
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  alertmanager:
+    container_name: alertmanager
+    image: prom/alertmanager:v0.25.0
+    ports:
+      - 9093:9093
+    volumes:
+      - ./config_files/alertmanager/config.yaml:/etc/alertmanager/config.yaml
+    command:
+      - '--config.file=/etc/alertmanager/config.yaml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=${SERVER_ALERTMANAGER_ADDRESS:-http://localhost:9093}'
+    restart: always
+
+volumes:
+  pg_master_data:
+    name: pg_master_data
+  pg_replica_data:
+    name: pg_replica_data
+  prometheus_data:
+    name: prometheus_data
+  grafana_data:
+    name: grafana_data
+
+
+networks:
+  db_cluster_net:
+    driver: bridge

@@ -1,0 +1,11 @@
+postgresql_role: replica
+max_connections: 100
+wal_level: replica
+primary_conninfo: "host={{ pg_primary_host }} port=5432 user={{ REPLICATION_USER }} password={{ REPLICATION_USER_PASS }} application_name=replica_01 dbname=postgres"
+hot_standby: on
+hot_standby_feedback: on
+shared_preload_libraries: pg_stat_statements	
+shared_buffers: 128MB
+work_mem: 4MB
+maintenance_work_mem: 128MB
+postgres_exporter_dsn: "postgresql://postgres:123456@localhost:5432/postgres?sslmode=disable"

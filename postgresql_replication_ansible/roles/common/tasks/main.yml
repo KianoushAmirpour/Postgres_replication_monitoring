@@ -1,0 +1,23 @@
+---
+
+- name: Install common packages
+  apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  loop:
+    - ufw
+    - python3-pip
+    - python3-psycopg2
+    - curl
+    - git 
+    - ansible
+
+- name: Allow ssh through ufw
+  ufw:
+    rule: allow
+    name: OpenSSH
+
+- name: Enable ufw (if not enabled)
+  ufw:
+    state: enabled

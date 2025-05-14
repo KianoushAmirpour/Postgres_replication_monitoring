@@ -1,0 +1,18 @@
+postgresql_role: primary
+max_connections: 100
+max_wal_senders: 5 
+max_replication_slots: 10
+wal_level: replica # writes enough data to support WAL archiving and replication
+wal_keep_size: 128MB # minimum size of past WAL files kept in the pg_wal directory, in case a standby server needs to fetch them for streaming replication
+max_slot_wal_keep_size: -1
+wal_sender_timeout: 90s # Terminate replication connections that are inactive for longer than this amount of time. This is useful for the sending server to detect a standby crash or network outage.
+synchronous_standby_names: replica_01
+synchronous_commit: off
+max_wal_size: 1GB
+min_wal_size: 80MB
+shared_preload_libraries: pg_stat_statements	
+shared_buffers: 128MB
+work_mem: 4MB
+maintenance_work_mem: 128MB
+postgres_exporter_dsn: "postgresql://postgres:123456@localhost:5432/postgres?sslmode=disable"
+

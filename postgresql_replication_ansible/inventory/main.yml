@@ -1,0 +1,17 @@
+all:
+  children:
+    postgres_servers:
+      hosts:
+        pg_primary:
+          ansible_host: "{{ pg_primary_host }}"
+          ansible_user: root
+          postgresql_role: primary
+        pg_replica_01:
+          ansible_host: "{{ pg_replica_01_host }}"
+          ansible_user: root
+          postgresql_role: replica
+    monitoring_servers:
+      hosts:
+        prometheus_grafana:
+          ansible_host: "{{ prometheus_grafana_host }}"
+          ansible_user: root

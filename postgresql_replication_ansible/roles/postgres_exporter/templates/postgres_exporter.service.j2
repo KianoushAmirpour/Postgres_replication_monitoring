@@ -1,0 +1,12 @@
+[Unit]
+Description=Prometheus PostgreSQL Exporter
+After=network.target
+
+[Service]
+User=postgres_exporter
+Environment=DATA_SOURCE_NAME={{ postgres_exporter_dsn }}
+ExecStart=/usr/local/bin/postgres_exporter
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

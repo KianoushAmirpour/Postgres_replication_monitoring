@@ -1,0 +1,7 @@
+POSTGRES_VERSION: "16"
+DATA_DIRECTORY: '/var/lib/postgresql/16/main'
+PG_HBA_CONF: '/etc/postgresql/16/main/pg_hba.conf'
+PG_CONF: '/etc/postgresql/16/main/postgresql.conf'
+REPLICATION_USER: 'replicauser'
+REPLICATION_USER_PASS: '123456'
+postgres_password: '123456'
